@@ -1,11 +1,15 @@
-# Use Python 3.11 slim image
+﻿# Use Python 3.11 slim image
 FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for WeasyPrint and Playwright
+# Install system dependencies for WeasyPrint, Playwright, and build tools
 RUN apt-get update && apt-get install -y \
+    # Build essentials for pip packages
+    gcc \
+    g++ \
+    make \
     # WeasyPrint dependencies
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
@@ -15,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     libopenjp2-7-dev \
     libgdk-pixbuf-2.0-0 \
     libcairo2 \
+    libcairo2-dev \
     shared-mime-info \
     # Playwright dependencies
     libnss3 \
@@ -37,6 +42,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+
+# Upgrade pip first
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
