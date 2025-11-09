@@ -1,0 +1,18 @@
+{
+  "name": "Markdown to PDF Converter",
+  "description": "Convert markdown files with LLM research outputs to PDFs with rendered visuals",
+  "keywords": ["markdown", "pdf", "mermaid", "converter"],
+  "website": "https://github.com/yourusername/md-pdf-converter",
+  "repository": "https://github.com/yourusername/md-pdf-converter",
+  "env": {
+    "FLASK_ENV": {
+      "description": "Flask environment",
+      "value": "production"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
