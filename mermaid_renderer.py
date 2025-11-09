@@ -41,29 +41,41 @@ class MermaidRenderer:
         if hasattr(self, 'playwright'):
             await self.playwright.stop()
     
-    def extract_mermaid_blocks(self, markdown_content: str) -> List[Tuple[str, str]]:
-        """Extract all mermaid code blocks from markdown"""
-        # Match both properly tagged mermaid blocks and untagged blocks that look like mermaid
-        pattern = r'```mermaid\n(.*?)```'
-        matches = re.finditer(pattern, markdown_content, re.DOTALL | re.IGNORECASE)
-        
+    def extract_mermaid_blocks(self, markdown_content: str) -> List[Tuple[str, str, int, int]]:
+        """Extract all mermaid code blocks from markdown with their positions"""
         blocks = []
-        for match in matches:
+        
+        # Pattern 1: Properly tagged mermaid blocks (case insensitive)
+        pattern1 = r'```mermaid\s*\n(.*?)\n```'
+        for match in re.finditer(pattern1, markdown_content, re.DOTALL | re.IGNORECASE):
             mermaid_code = match.group(1).strip()
             full_match = match.group(0)
-            blocks.append((full_match, mermaid_code))
+            start_pos = match.start()
+            end_pos = match.end()
+            blocks.append((full_match, mermaid_code, start_pos, end_pos))
         
-        # Also check for code blocks without language tags that start with mermaid keywords
-        generic_pattern = r'```\n((?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart).*?)```'
-        generic_matches = re.finditer(generic_pattern, markdown_content, re.DOTALL | re.IGNORECASE)
-        
-        for match in generic_matches:
+        # Pattern 2: Mermaid blocks without closing newline
+        pattern2 = r'```mermaid\s*\n(.*?)```'
+        for match in re.finditer(pattern2, markdown_content, re.DOTALL | re.IGNORECASE):
             mermaid_code = match.group(1).strip()
             full_match = match.group(0)
-            # Avoid duplicates
-            if (full_match, mermaid_code) not in blocks:
-                print(f"Found untagged mermaid diagram: {mermaid_code[:50]}...")
-                blocks.append((full_match, mermaid_code))
+            start_pos = match.start()
+            end_pos = match.end()
+            # Check if not already found
+            if not any(b[2] == start_pos for b in blocks):
+                blocks.append((full_match, mermaid_code, start_pos, end_pos))
+        
+        # Pattern 3: Untagged blocks that start with mermaid keywords
+        pattern3 = r'```\s*\n((?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart)[^\n]*.*?)\n```'
+        for match in re.finditer(pattern3, markdown_content, re.DOTALL | re.IGNORECASE):
+            mermaid_code = match.group(1).strip()
+            full_match = match.group(0)
+            start_pos = match.start()
+            end_pos = match.end()
+            # Check if not already found
+            if not any(b[2] == start_pos for b in blocks):
+                print(f"  Found untagged mermaid diagram at pos {start_pos}")
+                blocks.append((full_match, mermaid_code, start_pos, end_pos))
         
         return blocks
     
@@ -111,29 +123,82 @@ class MermaidRenderer:
             return False
     
     def render_mermaid_fallback(self, mermaid_code: str, output_path: str) -> bool:
-        """Fallback: Create a simple text representation"""
+        """Fallback: Render mermaid using mermaid.ink API"""
+        try:
+            import requests
+            import base64
+            
+            print(f"  Using fallback: mermaid.ink API")
+            
+            # Encode mermaid code
+            mermaid_bytes = mermaid_code.encode('utf-8')
+            encoded = base64.b64encode(mermaid_bytes).decode('utf-8')
+            
+            # Use mermaid.ink API to render the diagram
+            url = f"https://mermaid.ink/img/{encoded}"
+            
+            # Download the rendered image
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                with open(output_path, 'wb') as f:
+                    f.write(response.content)
+                print(f"  ✓ Rendered via mermaid.ink API")
+                return True
+            else:
+                print(f"  ✗ mermaid.ink API returned status {response.status_code}")
+                return self._render_mermaid_pil_fallback(mermaid_code, output_path)
+                
+        except Exception as e:
+            print(f"  ✗ mermaid.ink API failed: {e}")
+            return self._render_mermaid_pil_fallback(mermaid_code, output_path)
+    
+    def _render_mermaid_pil_fallback(self, mermaid_code: str, output_path: str) -> bool:
+        """Ultimate fallback: Create a simple diagram visualization with PIL"""
         try:
             from PIL import Image, ImageDraw, ImageFont
             
-            # Create a simple image with the diagram type
-            img = Image.new('RGB', (800, 400), color='white')
+            print(f"  Using PIL fallback")
+            
+            # Create a larger image
+            img = Image.new('RGB', (1200, 800), color='white')
             draw = ImageDraw.Draw(img)
             
-            # Extract diagram type
-            first_line = mermaid_code.split('\n')[0].strip()
+            # Add border
+            draw.rectangle([10, 10, 1190, 790], outline='#333', width=2)
+            
+            # Extract diagram type and content
+            lines = mermaid_code.strip().split('\n')
+            diagram_type = lines[0].strip() if lines else 'graph'
             
             try:
-                font = ImageFont.truetype("arial.ttf", 20)
+                font_title = ImageFont.truetype("arial.ttf", 24)
+                font_text = ImageFont.truetype("arial.ttf", 14)
             except:
-                font = ImageFont.load_default()
+                font_title = ImageFont.load_default()
+                font_text = ImageFont.load_default()
             
-            text = f"Mermaid Diagram:\n{first_line}\n\n(Render in browser for full visualization)"
-            draw.text((50, 50), text, fill='black', font=font)
+            # Draw title
+            title = f"Mermaid {diagram_type.split()[0].title()} Diagram"
+            draw.text((30, 30), title, fill='#2c3e50', font=font_title)
+            
+            # Draw the mermaid code in a readable format
+            y_position = 80
+            for line in lines[:15]:  # Show first 15 lines
+                if line.strip():
+                    draw.text((30, y_position), line[:80], fill='#555', font=font_text)
+                    y_position += 25
+            
+            # Add a note
+            draw.text((30, y_position + 40), 
+                     "Note: Full diagram rendering requires Playwright/Chromium", 
+                     fill='#888', font=font_text)
             
             img.save(output_path)
+            print(f"  ✓ Created PIL fallback image")
             return True
         except Exception as e:
-            print(f"Error creating fallback image: {e}")
+            print(f"  ✗ PIL fallback failed: {e}")
             return False
     
     async def process_markdown_async(self, markdown_content: str) -> str:
@@ -151,24 +216,28 @@ class MermaidRenderer:
         print(f"Browser available: {browser_available}")
         
         if not browser_available:
-            print("⚠️ Browser not available - using fallback rendering")
+            print("⚠️ Browser not available - using mermaid.ink fallback API")
         
-        processed_content = markdown_content
-        replacements_made = 0
+        # Process blocks in reverse order by position to maintain string positions
+        blocks_sorted = sorted(blocks, key=lambda x: x[2], reverse=True)
         
-        for full_block, mermaid_code in blocks:
+        replacements = []  # Store (start, end, replacement_text)
+        
+        for full_block, mermaid_code, start_pos, end_pos in blocks_sorted:
             self.image_counter += 1
             image_filename = f"mermaid_diagram_{self.image_counter}.png"
             image_path = os.path.join(self.temp_dir, image_filename)
             
-            print(f"\n[Diagram {self.image_counter}]")
-            print(f"  Original block length: {len(full_block)} chars")
+            print(f"\n[Diagram {self.image_counter}] at position {start_pos}-{end_pos}")
             print(f"  Mermaid code preview: {mermaid_code[:60]}...")
             print(f"  Output path: {image_path}")
             
-            # Try to render with browser, fallback to simple image
+            # Try to render with browser, fallback to API
             if browser_available:
                 success = await self.render_mermaid_to_image(mermaid_code, image_path)
+                if not success:
+                    print(f"  Browser render failed, trying mermaid.ink API")
+                    success = self.render_mermaid_fallback(mermaid_code, image_path)
             else:
                 success = self.render_mermaid_fallback(mermaid_code, image_path)
             
@@ -176,24 +245,30 @@ class MermaidRenderer:
                 file_size = os.path.getsize(image_path)
                 print(f"  ✓ Image created: {file_size} bytes")
                 
-                # Replace mermaid block with image reference using just the filename
+                # Create image reference
                 image_markdown = f"\n![Mermaid Diagram {self.image_counter}]({image_filename})\n"
-                
-                # Check if replacement will work
-                if full_block in processed_content:
-                    processed_content = processed_content.replace(full_block, image_markdown, 1)
-                    replacements_made += 1
-                    print(f"  ✓ Replaced block with image reference")
-                else:
-                    print(f"  ✗ ERROR: Could not find block in content to replace!")
-                    print(f"     Block starts with: {full_block[:100]}")
+                replacements.append((start_pos, end_pos, image_markdown))
+                print(f"  ✓ Scheduled replacement")
             else:
-                print(f"  ✗ Failed to create image file")
+                print(f"  ✗ Failed to create image file - keeping code block")
+        
+        # Apply replacements in reverse order
+        processed_content = markdown_content
+        for start_pos, end_pos, replacement in replacements:
+            processed_content = processed_content[:start_pos] + replacement + processed_content[end_pos:]
         
         if browser_available:
             await self.cleanup_browser()
         
+        replacements_made = len(replacements)
         print(f"\nTotal replacements made: {replacements_made}/{len(blocks)}")
+        
+        # Final verification
+        remaining_mermaid = len(re.findall(r'```mermaid', processed_content, re.IGNORECASE))
+        if remaining_mermaid > 0:
+            print(f"⚠️ WARNING: {remaining_mermaid} mermaid blocks still remain in content!")
+        else:
+            print(f"✓ All mermaid blocks successfully replaced with images")
         
         return processed_content
     
