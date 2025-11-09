@@ -22,8 +22,56 @@ class PDFConverter:
             ]
         )
     
-    def markdown_to_html(self, markdown_content: str) -> str:
-        """Convert markdown to HTML"""
+    def markdown_to_html(self, markdown_content: str, image_base_path: Optional[str] = None) -> str:
+        """Convert markdown to HTML with embedded images"""
+        import re
+        import base64
+        
+        # Debug: Check if there are still mermaid blocks
+        mermaid_blocks = re.findall(r'```mermaid.*?```', markdown_content, re.DOTALL)
+        if mermaid_blocks:
+            print(f"⚠️ WARNING: Found {len(mermaid_blocks)} unprocessed mermaid blocks in markdown!")
+            for i, block in enumerate(mermaid_blocks[:2], 1):  # Show first 2
+                print(f"  Block {i}: {block[:100]}...")
+        
+        # Check for image references
+        image_refs = re.findall(r'!\[([^\]]*)\]\(([^\)]+)\)', markdown_content)
+        print(f"Found {len(image_refs)} image references in markdown")
+        
+        # Convert images to base64 data URIs if image_base_path is provided
+        if image_base_path:
+            def replace_image(match):
+                alt_text = match.group(1)
+                img_path = match.group(2)
+                
+                # If it's already a data URI or absolute URL, leave it
+                if img_path.startswith(('data:', 'http://', 'https://')):
+                    return match.group(0)
+                
+                # Construct full path
+                if not os.path.isabs(img_path):
+                    full_path = os.path.join(image_base_path, img_path)
+                else:
+                    full_path = img_path
+                
+                # Convert to base64 data URI
+                if os.path.exists(full_path):
+                    try:
+                        with open(full_path, 'rb') as img_file:
+                            img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                            print(f"✓ Embedded image: {os.path.basename(img_path)}")
+                            return f'![{alt_text}](data:image/png;base64,{img_data})'
+                    except Exception as e:
+                        print(f"✗ Failed to embed {img_path}: {e}")
+                else:
+                    print(f"✗ Image not found: {full_path}")
+                
+                return match.group(0)
+            
+            markdown_content = re.sub(r'!\[([^\]]*)\]\(([^\)]+)\)', replace_image, markdown_content)
+        
+        # Reset the processor to clear any previous state
+        self.md_processor.reset()
         html_body = self.md_processor.convert(markdown_content)
         
         # Wrap in complete HTML document with styling
@@ -172,10 +220,16 @@ class PDFConverter:
         Returns:
             True if successful, False otherwise
         """
-        # Convert markdown to HTML
-        html_content = self.markdown_to_html(markdown_content)
+        print(f"\n{'='*60}")
+        print("Converting Markdown to PDF")
+        print(f"{'='*60}")
+        print(f"Image base path: {image_base_path}")
+        print(f"Output path: {output_path}")
         
-        # Set base_url for image resolution
+        # Convert markdown to HTML with embedded images
+        html_content = self.markdown_to_html(markdown_content, image_base_path)
+        
+        # Set base_url for image resolution (fallback if embedding fails)
         base_url = None
         if image_base_path:
             # Convert to file:// URL format

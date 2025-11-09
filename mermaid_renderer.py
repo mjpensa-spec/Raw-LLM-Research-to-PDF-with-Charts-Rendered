@@ -150,14 +150,21 @@ class MermaidRenderer:
         browser_available = await self.setup_browser()
         print(f"Browser available: {browser_available}")
         
+        if not browser_available:
+            print("⚠️ Browser not available - using fallback rendering")
+        
         processed_content = markdown_content
+        replacements_made = 0
         
         for full_block, mermaid_code in blocks:
             self.image_counter += 1
             image_filename = f"mermaid_diagram_{self.image_counter}.png"
             image_path = os.path.join(self.temp_dir, image_filename)
             
-            print(f"Rendering mermaid diagram {self.image_counter} to {image_path}")
+            print(f"\n[Diagram {self.image_counter}]")
+            print(f"  Original block length: {len(full_block)} chars")
+            print(f"  Mermaid code preview: {mermaid_code[:60]}...")
+            print(f"  Output path: {image_path}")
             
             # Try to render with browser, fallback to simple image
             if browser_available:
@@ -166,19 +173,27 @@ class MermaidRenderer:
                 success = self.render_mermaid_fallback(mermaid_code, image_path)
             
             if success and os.path.exists(image_path):
-                # Use absolute path for image reference so WeasyPrint can find it
-                abs_image_path = os.path.abspath(image_path)
-                print(f"Successfully rendered diagram, absolute path: {abs_image_path}")
+                file_size = os.path.getsize(image_path)
+                print(f"  ✓ Image created: {file_size} bytes")
                 
                 # Replace mermaid block with image reference using just the filename
-                # The base_url will handle resolving it
                 image_markdown = f"\n![Mermaid Diagram {self.image_counter}]({image_filename})\n"
-                processed_content = processed_content.replace(full_block, image_markdown, 1)
+                
+                # Check if replacement will work
+                if full_block in processed_content:
+                    processed_content = processed_content.replace(full_block, image_markdown, 1)
+                    replacements_made += 1
+                    print(f"  ✓ Replaced block with image reference")
+                else:
+                    print(f"  ✗ ERROR: Could not find block in content to replace!")
+                    print(f"     Block starts with: {full_block[:100]}")
             else:
-                print(f"Failed to render diagram {self.image_counter}")
+                print(f"  ✗ Failed to create image file")
         
         if browser_available:
             await self.cleanup_browser()
+        
+        print(f"\nTotal replacements made: {replacements_made}/{len(blocks)}")
         
         return processed_content
     

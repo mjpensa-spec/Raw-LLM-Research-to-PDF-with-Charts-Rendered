@@ -128,20 +128,48 @@ def upload_file():
                 markdown_content = f.read()
 
         # Process markdown
+        print("\n" + "="*60)
+        print("PROCESSING MARKDOWN FILE")
+        print("="*60)
+        
         # Step 1: Fix syntax
+        print("\nStep 1: Fixing markdown syntax...")
         fixer = MarkdownFixer(markdown_content)
         fixed_content = fixer.fix_all_issues()
+        print(f"✓ Fixed content length: {len(fixed_content)} characters")
+        
+        # Check for mermaid blocks before rendering
+        import re
+        mermaid_count = len(re.findall(r'```mermaid', fixed_content, re.IGNORECASE))
+        print(f"Found {mermaid_count} mermaid blocks in fixed content")
         
         # Step 2: Render mermaid diagrams
+        print("\nStep 2: Rendering mermaid diagrams...")
         renderer = MermaidRenderer()
         processed_content = renderer.process_markdown(fixed_content)
         
         # Get the temp directory where images are stored
         image_temp_dir = renderer.get_temp_dir()
-        print(f"Mermaid images stored in: {image_temp_dir}")
+        print(f"✓ Mermaid images stored in: {image_temp_dir}")
+        
+        # Check how many images were created
+        import glob
+        images = glob.glob(os.path.join(image_temp_dir, "*.png"))
+        print(f"✓ Created {len(images)} image files")
+        
+        # Check for mermaid blocks after rendering
+        mermaid_after = len(re.findall(r'```mermaid', processed_content, re.IGNORECASE))
+        print(f"Mermaid blocks remaining after render: {mermaid_after}")
 
         # Step 3: Remove non-essential code blocks
+        print("\nStep 3: Removing non-essential code blocks...")
         processed_content = remove_non_essential_code_blocks(processed_content)
+        
+        # Final check
+        mermaid_final = len(re.findall(r'```mermaid', processed_content, re.IGNORECASE))
+        print(f"Mermaid blocks in final content: {mermaid_final}")
+        if mermaid_final > 0:
+            print("⚠️ WARNING: Mermaid code blocks still present in final content!")
 
         # Step 4: Convert to PDF
         output_filename = f"{unique_id}_{Path(original_filename).stem}.pdf"
