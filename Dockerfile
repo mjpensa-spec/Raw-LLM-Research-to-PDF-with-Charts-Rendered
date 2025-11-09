@@ -61,9 +61,11 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium browser
-# NOTE: We do NOT use --with-deps because we've already installed all system dependencies above
-# Using --with-deps would try to install ttf-ubuntu-font-family and ttf-unifont which don't exist in Debian Trixie
+# CRITICAL: Install Playwright Chromium browser WITHOUT --with-deps
+# Cache bust: 2025-11-09-v2
+# We manually installed all system dependencies above, so we do NOT need --with-deps
+# Using --with-deps causes errors trying to install ttf-ubuntu-font-family and ttf-unifont
+# which don't exist in Debian Trixie (Python 3.11-slim base image)
 RUN echo "Installing Playwright Chromium..." && \
     playwright install chromium && \
     echo "Playwright Chromium installed successfully"
