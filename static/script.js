@@ -50,20 +50,18 @@ fileLabel.addEventListener('drop', (e) => {
 function handleFileSelect() {
     if (fileInput.files.length > 0) {
         currentFile = fileInput.files[0];
-        
+
         // Validate file type
         const fileName = currentFile.name.toLowerCase();
-        const validExtensions = ['.md', '.markdown', '.txt'];
+        const validExtensions = ['.md', '.markdown', '.txt', '.pdf'];
         const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-        
+
         if (!isValid) {
-            showError('Invalid file type. Please upload a .md or .markdown file');
+            showError('Invalid file type. Please upload a .md, .markdown, or .pdf file');
             currentFile = null;
             convertBtn.disabled = true;
             return;
-        }
-        
-        // Validate file size (16MB max)
+        }        // Validate file size (16MB max)
         const maxSize = 16 * 1024 * 1024;
         if (currentFile.size > maxSize) {
             showError('File is too large. Maximum size is 16MB');
@@ -126,7 +124,7 @@ async function handleSubmit(e) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = currentFile.name.replace(/\.(md|markdown|txt)$/i, '_processed.pdf');
+        a.download = currentFile.name.replace(/\.(md|markdown|txt|pdf)$/i, '_processed.pdf');
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
