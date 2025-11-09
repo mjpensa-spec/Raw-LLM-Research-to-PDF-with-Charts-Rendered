@@ -21,6 +21,10 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libcairo2-dev \
     shared-mime-info \
+    # Fonts for rendering (use Debian Trixie compatible packages)
+    fonts-liberation \
+    fonts-noto-core \
+    fonts-noto-cjk \
     # Playwright dependencies
     libnss3 \
     libnspr4 \
@@ -37,6 +41,14 @@ RUN apt-get update && apt-get install -y \
     libasound2 \
     libatspi2.0-0 \
     libxshmfence1 \
+    # Additional Chromium dependencies
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcb-dri3-0 \
+    libxext6 \
+    libxi6 \
+    libxtst6 \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 
@@ -49,9 +61,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers with system dependencies
-# Use --with-deps to ensure all dependencies are installed
-RUN playwright install --with-deps chromium
+# Install Playwright browsers WITHOUT --with-deps since we already installed system deps manually
+# This avoids the font package conflict in Debian Trixie
+RUN playwright install chromium
 
 # Verify Playwright installation
 RUN python -c "from playwright.sync_api import sync_playwright; print('Playwright installed successfully')"
