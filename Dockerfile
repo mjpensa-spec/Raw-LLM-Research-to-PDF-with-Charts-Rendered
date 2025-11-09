@@ -49,8 +49,12 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers (system deps already installed above)
-RUN playwright install chromium
+# Install Playwright browsers with system dependencies
+# Use --with-deps to ensure all dependencies are installed
+RUN playwright install --with-deps chromium
+
+# Verify Playwright installation
+RUN python -c "from playwright.sync_api import sync_playwright; print('Playwright installed successfully')"
 
 # Copy application code
 COPY *.py .
