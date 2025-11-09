@@ -1,4 +1,4 @@
-"""
+﻿"""
 Flask Web Application for Markdown to PDF Converter
 Provides a web interface for uploading markdown files and downloading PDFs
 """
@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from flask import Flask, request, send_file, jsonify, render_template
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+import PyPDF2
 
 from markdown_fixer import MarkdownFixer
 from mermaid_renderer import MermaidRenderer
@@ -23,7 +24,7 @@ CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp(prefix='md_uploads_')
 app.config['OUTPUT_FOLDER'] = tempfile.mkdtemp(prefix='pdf_outputs_')
-app.config['ALLOWED_EXTENSIONS'] = {'md', 'markdown', 'txt'}
+app.config['ALLOWED_EXTENSIONS'] = {'md', 'markdown', 'txt', 'pdf'}
 
 # Ensure folders exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -36,11 +37,37 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 
+def extract_text_from_pdf(pdf_path):
+    """
+    Extract text content from a PDF file
+    
+    Args:
+        pdf_path: Path to the PDF file
+        
+    Returns:
+        Extracted text as a string
+    """
+    text_content = []
+    
+    try:
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            
+            for page_num, page in enumerate(pdf_reader.pages, 1):
+                text = page.extract_text()
+                if text.strip():
+                    text_content.append(f"# Page {page_num}\n\n{text}\n")
+                    
+        return '\n'.join(text_content)
+    except Exception as e:
+        raise Exception(f"Failed to extract text from PDF: {str(e)}")
+
+
 def cleanup_old_files():
     """Clean up files older than 1 hour"""
     try:
         cutoff_time = datetime.now() - timedelta(hours=1)
-        
+
         for folder in [app.config['UPLOAD_FOLDER'], app.config['OUTPUT_FOLDER']]:
             for file_path in Path(folder).glob('*'):
                 if file_path.is_file():
@@ -60,39 +87,46 @@ def index():
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """
-    Handle markdown file upload and process it
+    Handle markdown or PDF file upload and process it
     Returns the PDF file directly
     """
     cleanup_old_files()
-    
+
     # Check if file was uploaded
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
-    
+
     file = request.files['file']
-    
+
     # Check if file was selected
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
+
     # Validate file type
     if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Please upload a .md or .markdown file'}), 400
-    
+        return jsonify({'error': 'Invalid file type. Please upload a .md, .markdown, or .pdf file'}), 400
+
     try:
         # Generate unique filename
         unique_id = str(uuid.uuid4())
         original_filename = secure_filename(file.filename)
         upload_filename = f"{unique_id}_{original_filename}"
         upload_path = os.path.join(app.config['UPLOAD_FOLDER'], upload_filename)
-        
+
         # Save uploaded file
         file.save(upload_path)
+
+        # Determine file type and read content
+        file_extension = Path(original_filename).suffix.lower()
         
-        # Read markdown content
-        with open(upload_path, 'r', encoding='utf-8') as f:
-            markdown_content = f.read()
-        
+        if file_extension == '.pdf':
+            # Extract text from PDF
+            markdown_content = extract_text_from_pdf(upload_path)
+        else:
+            # Read markdown content
+            with open(upload_path, 'r', encoding='utf-8') as f:
+                markdown_content = f.read()
+
         # Process markdown
         # Step 1: Fix syntax
         fixer = MarkdownFixer(markdown_content)
@@ -101,20 +135,20 @@ def upload_file():
         # Step 2: Render mermaid diagrams
         renderer = MermaidRenderer()
         processed_content = renderer.process_markdown(fixed_content)
-        
+
         # Step 3: Remove non-essential code blocks
         processed_content = remove_non_essential_code_blocks(processed_content)
-        
+
         # Step 4: Convert to PDF
         output_filename = f"{unique_id}_{Path(original_filename).stem}.pdf"
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
-        
+
         converter = PDFConverter()
         success = converter.convert_markdown_to_pdf(processed_content, output_path)
-        
+
         if not success:
             return jsonify({'error': 'Failed to generate PDF'}), 500
-        
+
         # Return the PDF file
         return send_file(
             output_path,
@@ -122,10 +156,10 @@ def upload_file():
             as_attachment=True,
             download_name=f"{Path(original_filename).stem}_processed.pdf"
         )
-    
+
     except Exception as e:
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
-    
+
     finally:
         # Cleanup uploaded file
         try:
@@ -141,39 +175,39 @@ def remove_non_essential_code_blocks(content: str) -> str:
     Keep only code blocks that are actual code examples
     """
     import re
-    
+
     # Languages that should be kept as code examples
     keep_languages = {'python', 'javascript', 'java', 'c', 'cpp', 'csharp', 
-                     'ruby', 'go', 'rust', 'php', 'sql', 'bash', 'shell', 
+                     'ruby', 'go', 'rust', 'php', 'sql', 'bash', 'shell',
                      'typescript', 'jsx', 'tsx', 'json', 'xml', 'yaml', 'html', 'css'}
-    
+
     def replacer(match):
         language = match.group(1).strip().lower()
         code_content = match.group(2)
-        
+
         # Keep if it's a recognized programming language
         if language in keep_languages:
             return match.group(0)
-        
+
         # Remove if it's empty or just whitespace
         if not code_content.strip():
             return ""
-        
+
         # Remove if it looks like a diagram language
         diagram_keywords = ['mermaid', 'diagram', 'graph', 'flowchart', 'chart']
         if any(keyword in language for keyword in diagram_keywords):
             return ""
-        
+
         # If no language specified, keep it as it might be important
         if not language:
             return match.group(0)
-        
+
         return match.group(0)
-    
+
     # Process code blocks
-    pattern = r'```(\w*)\n(.*?)```'
+    pattern = r'`(\w*)\n(.*?)`'
     cleaned = re.sub(pattern, replacer, content, flags=re.DOTALL)
-    
+
     return cleaned
 
 
@@ -185,13 +219,13 @@ def health_check():
 
 if __name__ == '__main__':
     import os
-    
+
     # Get environment configuration
     debug_mode = os.environ.get('FLASK_ENV', 'development') == 'development'
     port = int(os.environ.get('PORT', 5000))
-    
+
     print("=" * 60)
-    print("Markdown to PDF Converter - Web UI")
+    print("Markdown/PDF to PDF Converter - Web UI")
     print("=" * 60)
     print(f"Environment: {os.environ.get('FLASK_ENV', 'development')}")
     print(f"Server starting at: http://0.0.0.0:{port}")
@@ -199,5 +233,5 @@ if __name__ == '__main__':
     print(f"Output folder: {app.config['OUTPUT_FOLDER']}")
     print("=" * 60)
     print("\nPress Ctrl+C to stop the server\n")
-    
+
     app.run(debug=debug_mode, host='0.0.0.0', port=port)
