@@ -43,14 +43,27 @@ class MermaidRenderer:
     
     def extract_mermaid_blocks(self, markdown_content: str) -> List[Tuple[str, str]]:
         """Extract all mermaid code blocks from markdown"""
+        # Match both properly tagged mermaid blocks and untagged blocks that look like mermaid
         pattern = r'```mermaid\n(.*?)```'
-        matches = re.finditer(pattern, markdown_content, re.DOTALL)
+        matches = re.finditer(pattern, markdown_content, re.DOTALL | re.IGNORECASE)
         
         blocks = []
         for match in matches:
             mermaid_code = match.group(1).strip()
             full_match = match.group(0)
             blocks.append((full_match, mermaid_code))
+        
+        # Also check for code blocks without language tags that start with mermaid keywords
+        generic_pattern = r'```\n((?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart).*?)```'
+        generic_matches = re.finditer(generic_pattern, markdown_content, re.DOTALL | re.IGNORECASE)
+        
+        for match in generic_matches:
+            mermaid_code = match.group(1).strip()
+            full_match = match.group(0)
+            # Avoid duplicates
+            if (full_match, mermaid_code) not in blocks:
+                print(f"Found untagged mermaid diagram: {mermaid_code[:50]}...")
+                blocks.append((full_match, mermaid_code))
         
         return blocks
     
@@ -128,10 +141,14 @@ class MermaidRenderer:
         blocks = self.extract_mermaid_blocks(markdown_content)
         
         if not blocks:
+            print("No mermaid blocks found in markdown content")
             return markdown_content
+        
+        print(f"Found {len(blocks)} mermaid blocks to render")
         
         # Try to setup browser
         browser_available = await self.setup_browser()
+        print(f"Browser available: {browser_available}")
         
         processed_content = markdown_content
         
@@ -140,6 +157,8 @@ class MermaidRenderer:
             image_filename = f"mermaid_diagram_{self.image_counter}.png"
             image_path = os.path.join(self.temp_dir, image_filename)
             
+            print(f"Rendering mermaid diagram {self.image_counter} to {image_path}")
+            
             # Try to render with browser, fallback to simple image
             if browser_available:
                 success = await self.render_mermaid_to_image(mermaid_code, image_path)
@@ -147,9 +166,16 @@ class MermaidRenderer:
                 success = self.render_mermaid_fallback(mermaid_code, image_path)
             
             if success and os.path.exists(image_path):
-                # Replace mermaid block with image reference
-                image_markdown = f"\n![Mermaid Diagram {self.image_counter}]({image_path})\n"
+                # Use absolute path for image reference so WeasyPrint can find it
+                abs_image_path = os.path.abspath(image_path)
+                print(f"Successfully rendered diagram, absolute path: {abs_image_path}")
+                
+                # Replace mermaid block with image reference using just the filename
+                # The base_url will handle resolving it
+                image_markdown = f"\n![Mermaid Diagram {self.image_counter}]({image_filename})\n"
                 processed_content = processed_content.replace(full_block, image_markdown, 1)
+            else:
+                print(f"Failed to render diagram {self.image_counter}")
         
         if browser_available:
             await self.cleanup_browser()

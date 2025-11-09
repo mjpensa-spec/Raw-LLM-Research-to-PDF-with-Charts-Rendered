@@ -135,6 +135,10 @@ def upload_file():
         # Step 2: Render mermaid diagrams
         renderer = MermaidRenderer()
         processed_content = renderer.process_markdown(fixed_content)
+        
+        # Get the temp directory where images are stored
+        image_temp_dir = renderer.get_temp_dir()
+        print(f"Mermaid images stored in: {image_temp_dir}")
 
         # Step 3: Remove non-essential code blocks
         processed_content = remove_non_essential_code_blocks(processed_content)
@@ -144,7 +148,11 @@ def upload_file():
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], output_filename)
 
         converter = PDFConverter()
-        success = converter.convert_markdown_to_pdf(processed_content, output_path)
+        success = converter.convert_markdown_to_pdf(
+            processed_content, 
+            output_path,
+            image_base_path=image_temp_dir
+        )
 
         if not success:
             return jsonify({'error': 'Failed to generate PDF'}), 500
@@ -179,33 +187,44 @@ def remove_non_essential_code_blocks(content: str) -> str:
     # Languages that should be kept as code examples
     keep_languages = {'python', 'javascript', 'java', 'c', 'cpp', 'csharp', 
                      'ruby', 'go', 'rust', 'php', 'sql', 'bash', 'shell',
-                     'typescript', 'jsx', 'tsx', 'json', 'xml', 'yaml', 'html', 'css'}
+                     'typescript', 'jsx', 'tsx', 'json', 'xml', 'yaml', 'html', 'css',
+                     'swift', 'kotlin', 'scala', 'r', 'matlab', 'perl', 'lua'}
 
     def replacer(match):
         language = match.group(1).strip().lower()
         code_content = match.group(2)
 
-        # Keep if it's a recognized programming language
-        if language in keep_languages:
-            return match.group(0)
-
         # Remove if it's empty or just whitespace
         if not code_content.strip():
             return ""
 
-        # Remove if it looks like a diagram language
-        diagram_keywords = ['mermaid', 'diagram', 'graph', 'flowchart', 'chart']
-        if any(keyword in language for keyword in diagram_keywords):
+        # Remove if it's explicitly a diagram/chart language
+        diagram_keywords = ['mermaid', 'diagram', 'graph', 'flowchart', 'chart', 
+                           'gantt', 'sequence', 'class', 'state', 'entity',
+                           'pie', 'timeline', 'mindmap', 'gitgraph']
+        if any(keyword in language.lower() for keyword in diagram_keywords):
+            print(f"Removing code block with language: {language}")
+            return ""
+        
+        # Check if content looks like a diagram even without proper language tag
+        content_start = code_content.strip().lower()[:50]
+        if any(keyword in content_start for keyword in diagram_keywords):
+            print(f"Removing untagged diagram code block")
             return ""
 
-        # If no language specified, keep it as it might be important
+        # Keep if it's a recognized programming language
+        if language in keep_languages:
+            return match.group(0)
+
+        # If no language specified and doesn't look like a diagram, keep it
         if not language:
             return match.group(0)
 
+        # Default: keep unknown code blocks (might be programming languages we didn't list)
         return match.group(0)
 
-    # Process code blocks
-    pattern = r'`(\w*)\n(.*?)`'
+    # Process code blocks with triple backticks
+    pattern = r'```(\w*)\n(.*?)```'
     cleaned = re.sub(pattern, replacer, content, flags=re.DOTALL)
 
     return cleaned

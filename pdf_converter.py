@@ -66,6 +66,7 @@ class PDFConverter:
             border: 1px solid #ddd;
             border-radius: 4px;
             padding: 5px;
+            page-break-inside: avoid;
         }}
         table {{
             border-collapse: collapse;
@@ -133,13 +134,19 @@ class PDFConverter:
 """
         return html
     
-    def html_to_pdf(self, html_content: str, output_path: str) -> bool:
+    def html_to_pdf(self, html_content: str, output_path: str, base_url: Optional[str] = None) -> bool:
         """Convert HTML to PDF using WeasyPrint"""
         try:
             from weasyprint import HTML, CSS
             
+            # Use provided base_url or default to output directory
+            if base_url is None:
+                base_url = f"file:///{os.path.dirname(os.path.abspath(output_path)).replace(os.sep, '/')}/"
+            
+            print(f"Converting HTML to PDF with base_url: {base_url}")
+            
             # Create PDF
-            html_obj = HTML(string=html_content, base_url=os.path.dirname(output_path))
+            html_obj = HTML(string=html_content, base_url=base_url)
             html_obj.write_pdf(output_path)
             
             return True
@@ -149,15 +156,18 @@ class PDFConverter:
             return False
         except Exception as e:
             print(f"Error converting HTML to PDF: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
-    def convert_markdown_to_pdf(self, markdown_content: str, output_path: str) -> bool:
+    def convert_markdown_to_pdf(self, markdown_content: str, output_path: str, image_base_path: Optional[str] = None) -> bool:
         """
         Convert markdown content directly to PDF
         
         Args:
             markdown_content: The markdown text to convert
             output_path: Path where PDF should be saved
+            image_base_path: Base path for resolving image references
             
         Returns:
             True if successful, False otherwise
@@ -165,8 +175,14 @@ class PDFConverter:
         # Convert markdown to HTML
         html_content = self.markdown_to_html(markdown_content)
         
+        # Set base_url for image resolution
+        base_url = None
+        if image_base_path:
+            # Convert to file:// URL format
+            base_url = f"file:///{os.path.abspath(image_base_path).replace(os.sep, '/')}/"
+        
         # Convert HTML to PDF
-        return self.html_to_pdf(html_content, output_path)
+        return self.html_to_pdf(html_content, output_path, base_url=base_url)
     
     def convert_file_to_pdf(self, markdown_file: str, output_path: Optional[str] = None) -> bool:
         """
