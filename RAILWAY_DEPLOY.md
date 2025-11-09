@@ -17,6 +17,35 @@ The easiest way to share with coworkers - detailed step-by-step instructions wit
 
 ---
 
+## 🆘 Quick Troubleshooting
+
+**Common Issue: "I don't see my files in GitHub after pushing"**
+
+👉 **[Jump to detailed solution](#step-31b-troubleshooting---files-not-showing-in-github)**
+
+**Quick checks:**
+```powershell
+# Run the diagnostic script
+.\check-github.ps1
+
+# Or manually check:
+# 1. Verify files were added to Git
+git ls-files
+
+# 2. Check push was successful
+git log --oneline
+
+# 3. Verify remote URL
+git remote -v
+
+# 4. Try force push if needed
+git push -u origin main --force
+```
+
+Then refresh GitHub in your browser (Ctrl + F5)
+
+---
+
 ## Prerequisites
 
 Before you begin, make sure you have:
@@ -95,7 +124,7 @@ It should exclude folders like `__pycache__/`, `venv/`, `uploads/`, etc.
 
 Fill in the repository details:
 
-- **Repository name**: `md-pdf-converter` (or your preferred name)
+- **Repository name**: `Raw-LLM-Research-to-PDF-with-Charts-Rendered`
 - **Description**: `Convert markdown files to PDFs with rendered Mermaid diagrams`
 - **Visibility**: 
   - ✅ **Public** (recommended for easy deployment)
@@ -112,7 +141,7 @@ Click **"Create repository"**
 After creating the repository, you'll see quick setup instructions. Copy the **HTTPS URL** that looks like:
 
 ```
-https://github.com/YOUR-USERNAME/md-pdf-converter.git
+https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered.git
 ```
 
 Keep this URL handy!
@@ -138,8 +167,8 @@ git status
 # Commit your code
 git commit -m "Initial commit - Markdown to PDF Converter with web UI"
 
-# Add GitHub as remote (replace YOUR-USERNAME with your GitHub username)
-git remote add origin https://github.com/YOUR-USERNAME/md-pdf-converter.git
+# Add GitHub as remote (replace YOUR-USERNAME with your actual GitHub username)
+git remote add origin https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered.git
 
 # Push to GitHub
 git branch -M main
@@ -155,6 +184,187 @@ git push -u origin main
 
 **Verify:** Go to your GitHub repository URL - you should see all your files!
 
+### Step 3.1b: Troubleshooting - Files Not Showing in GitHub
+
+**If you don't see your files on GitHub, follow these steps:**
+
+#### Check 1: Verify the Push Was Successful
+
+Look at the output from `git push`. You should see:
+
+```
+Enumerating objects: 25, done.
+Counting objects: 100% (25/25), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (20/20), done.
+Writing objects: 100% (25/25), 15.23 KiB | 1.52 MiB/s, done.
+Total 25 (delta 2), reused 0 (delta 0)
+To https://github.com/YOUR-USERNAME/md-pdf-converter.git
+ * [new branch]      main -> main
+```
+
+**If you see errors instead:**
+- `error: failed to push` - Check your credentials
+- `Permission denied` - Verify your Personal Access Token has `repo` permissions
+- `remote: Repository not found` - Check your repository URL
+
+#### Check 2: Verify Your Current Branch
+
+```powershell
+# Check which branch you're on
+git branch
+
+# You should see:
+# * main (with an asterisk)
+```
+
+**If you're on a different branch** (like `master`):
+```powershell
+# Push from your current branch
+git push -u origin master
+```
+
+#### Check 3: View Your Files Locally in Git
+
+```powershell
+# Check what files Git is tracking
+git ls-files
+
+# You should see all your files listed:
+# app.py
+# main.py
+# Dockerfile
+# requirements.txt
+# templates/index.html
+# static/style.css
+# etc.
+```
+
+**If you don't see your files**, they weren't added to Git:
+```powershell
+# Check untracked files
+git status
+
+# If you see files under "Untracked files:", add them:
+git add .
+git commit -m "Add all files"
+git push
+```
+
+#### Check 4: Visit GitHub and Refresh
+
+1. **Go to your repository URL**: `https://github.com/YOUR-USERNAME/md-pdf-converter`
+2. **Make sure you're on the correct branch**:
+   - Look for the branch dropdown (usually says "main" or "master")
+   - Click it and select the branch you pushed to
+3. **Force refresh** your browser:
+   - Windows: `Ctrl + F5`
+   - Or click the refresh button
+
+#### Check 5: Verify Repository URL
+
+```powershell
+# Check your remote URL
+git remote -v
+
+# You should see:
+# origin  https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered.git (fetch)
+# origin  https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered.git (push)
+```
+
+**If the URL is wrong**:
+```powershell
+# Remove the wrong remote
+git remote remove origin
+
+# Add the correct one (replace YOUR-USERNAME with your actual GitHub username)
+git remote add origin https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered.git
+
+# Try pushing again
+git push -u origin main
+```
+
+#### Check 6: View Commit History on GitHub
+
+1. **Go to your GitHub repository**: `https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered`
+2. **Click on "Commits"** (shows a clock icon with a number)
+3. **You should see your commit**: "Initial commit - Markdown to PDF Converter with web UI"
+4. **Click on the commit** to see what files were included
+
+**If you see the commit but no files**:
+- The commit might be empty
+- Run `git log --stat` locally to see what was committed
+
+#### Complete Verification Checklist
+
+Run these commands to verify everything:
+
+```powershell
+# 1. Check what files are staged
+git status
+
+# 2. Check what files Git is tracking
+git ls-files
+
+# 3. Check your remote
+git remote -v
+
+# 4. Check your recent commits
+git log --oneline -5
+
+# 5. Check what was in your last commit
+git show --stat
+```
+
+#### Still Having Issues? Here's the Reset Solution
+
+If nothing works, let's start fresh:
+
+```powershell
+# Navigate to your project
+cd C:\md-research-processor
+
+# Check what's in the directory
+dir
+
+# Make sure you have a .git folder
+dir -Force
+
+# If you see .git folder, check status
+git status
+
+# Add ALL files (including hidden ones)
+git add -A
+
+# Commit everything
+git commit -m "Complete project files"
+
+# Force push (use with caution!)
+git push -u origin main --force
+```
+
+**After force pushing:**
+1. Wait 10 seconds
+2. Refresh GitHub in your browser (Ctrl + F5)
+3. Check if files appear
+
+#### Visual Guide: What You Should See on GitHub
+
+When you visit `https://github.com/YOUR-USERNAME/Raw-LLM-Research-to-PDF-with-Charts-Rendered`, you should see:
+
+**Files visible:**
+- ✅ `app.py`
+- ✅ `main.py`
+- ✅ `Dockerfile`
+- ✅ `docker-compose.yml`
+- ✅ `requirements.txt`
+- ✅ `README.md`
+- ✅ `templates/` folder
+- ✅ `static/` folder
+- ✅ Other Python files (markdown_fixer.py, etc.)
+
+**Count check:** You should see **15-20 files/folders** in total
+
 ### Step 3.2: Sign Up for Railway
 
 1. **Go to Railway**: Open [railway.app](https://railway.app) in your browser
@@ -169,7 +379,7 @@ git push -u origin main
 1. **On Railway Dashboard**, click **"New Project"** button (purple button)
 2. **Select "Deploy from GitHub repo"**
    - If you don't see your repositories, click "Configure GitHub App" to grant access
-3. **Find and select** your `md-pdf-converter` repository from the list
+3. **Find and select** your `Raw-LLM-Research-to-PDF-with-Charts-Rendered` repository from the list
 4. **Click on the repository** to start deployment
 
 ### Step 3.4: Watch the Build Process
@@ -214,7 +424,12 @@ Your app is deployed but not yet accessible publicly. Let's fix that:
 
 Railway will create a URL like:
 ```
-https://md-pdf-converter-production-XXXX.up.railway.app
+https://raw-llm-research-to-pdf-with-charts-rendered-production-XXXX.up.railway.app
+```
+
+Or Railway might shorten it to something like:
+```
+https://your-app-name.up.railway.app
 ```
 
 This is your **public URL** - save it!
